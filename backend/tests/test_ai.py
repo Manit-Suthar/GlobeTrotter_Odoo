@@ -56,10 +56,10 @@ def test_parse_trip_intent_success(monkeypatch):
     mock_response = MagicMock()
     mock_response.text = mock_gemini_json
 
-    mock_model = MagicMock()
-    mock_model.generate_content.return_value = mock_response
+    mock_client = MagicMock()
+    mock_client.models.generate_content.return_value = mock_response
 
-    with patch("google.generativeai.GenerativeModel", return_value=mock_model):
+    with patch("google.genai.Client", return_value=mock_client):
         request = TripIntentRequest(
             title="Backpacking Rajasthan",
             start_date="2026-10-01",
@@ -105,10 +105,10 @@ def test_api_endpoint_success(monkeypatch):
     mock_response = MagicMock()
     mock_response.text = mock_gemini_json
 
-    mock_model = MagicMock()
-    mock_model.generate_content.return_value = mock_response
+    mock_client = MagicMock()
+    mock_client.models.generate_content.return_value = mock_response
 
-    with patch("google.generativeai.GenerativeModel", return_value=mock_model):
+    with patch("google.genai.Client", return_value=mock_client):
         payload = {
             "title": "Kerala Trip",
             "start_date": "2026-11-10",
