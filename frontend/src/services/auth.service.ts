@@ -1,3 +1,5 @@
+import { apiClient } from '../utils/api';
+
 export interface User {
   id: string;
   email: string;
@@ -10,31 +12,31 @@ export interface AuthResponse {
 }
 
 export const authService = {
-  async login(email: string, password: string):Promise<AuthResponse> {
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        if (email && password) {
-          resolve({ access_token: "mock-jwt-token-123", token_type: "bearer" });
-        } else {
-          reject(new Error("Invalid credentials"));
-        }
-      }, 1000);
+  async login(email: string, password: string): Promise<AuthResponse> {
+    return apiClient('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
     });
   },
 
   async register(data: any): Promise<User> {
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        if (data.email && data.password && data.firstName) {
-          resolve({
-            id: "user-456",
-            email: data.email,
-            name: `${data.firstName} ${data.lastName}`.trim(),
-          });
-        } else {
-          reject(new Error("Missing required fields"));
-        }
-      }, 1000);
+    // Frontend signup sends firstName and lastName, but backend expects name.
+    const fullName = `${data.firstName || ''} ${data.lastName || ''}`.trim();
+    return apiClient('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: data.email,
+        password: data.password,
+        name: fullName || 'New User',
+      }),
     });
+  },
+
+  async logout(): Promise<void> {
+    return apiClient('/auth/logout', { method: 'POST' });
+  },
+
+  async getCurrentUser(): Promise<User> {
+    return apiClient('/auth/me');
   }
 };

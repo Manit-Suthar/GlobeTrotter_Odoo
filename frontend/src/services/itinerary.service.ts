@@ -1,13 +1,16 @@
+import { apiClient } from '../utils/api';
+
 export interface TripActivity {
   id: string;
   activity_id: string;
   custom_name: string;
   scheduled_time?: string; // HH:mm
-  scheduled_date?: string; // YYYY-MM-DD (to allow Day grouping if needed)
+  scheduled_date?: string; // YYYY-MM-DD
   cost_estimate: number;
   image_url?: string;
   category?: string;
   duration?: string;
+  notes?: string;
 }
 
 export interface TripStop {
@@ -32,83 +35,65 @@ export interface Itinerary {
   stops: TripStop[];
 }
 
-// Global mock memory
-let mockItineraries: Record<string, Itinerary> = {
-  "trip-1": {
-    trip_id: "trip-1",
-    name: "Japan in Autumn",
-    start_date: "2026-10-10",
-    end_date: "2026-10-18",
-    duration_days: 9,
-    cover_image: "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?auto=format&fit=crop&w=800&q=80",
-    stops: [
-      {
-        id: "stop-1",
-        city_id: "city-1",
-        city_name: "Tokyo",
-        country: "Japan",
-        start_date: "2026-10-10",
-        end_date: "2026-10-14",
-        image_url: "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?auto=format&fit=crop&w=600&q=80",
-        order_index: 0,
-        activities: [
-          {
-            id: "act-1",
-            activity_id: "act-1",
-            custom_name: "Senso-ji Temple",
-            scheduled_time: "10:00",
-            scheduled_date: "2026-10-11",
-            cost_estimate: 500,
-            image_url: "https://images.unsplash.com/photo-1542051812871-75750865a585?auto=format&fit=crop&w=400&q=80",
-            category: "Sightseeing",
-            duration: "2 hours"
-          },
-          {
-            id: "act-2",
-            activity_id: "act-2",
-            custom_name: "Shibuya Crossing",
-            scheduled_time: "14:00",
-            scheduled_date: "2026-10-11",
-            cost_estimate: 0,
-            image_url: "https://images.unsplash.com/photo-1542931287-023b922fa89b?auto=format&fit=crop&w=400&q=80",
-            category: "Explore",
-            duration: "1 hour"
-          }
-        ]
-      }
-    ]
-  }
-};
-
 export const itineraryService = {
   async getItinerary(tripId: string): Promise<Itinerary> {
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        if (mockItineraries[tripId]) {
-          resolve(JSON.parse(JSON.stringify(mockItineraries[tripId]))); // Deep copy
-        } else {
-          // If we don't have it, create an empty one based on tripId
-          const newItinerary: Itinerary = {
-            trip_id: tripId,
-            name: "Your Trip",
-            start_date: "2026-11-01",
-            end_date: "2026-11-10",
-            duration_days: 10,
-            stops: []
-          };
-          mockItineraries[tripId] = newItinerary;
-          resolve(JSON.parse(JSON.stringify(newItinerary)));
-        }
-      }, 600);
-    });
+    const raw = await apiClient(`/trips/${tripId}/itinerary`, { method: 'GET' });
+    const trip = await apiClient(`/trips/${tripId}`, { method: 'GET' }); // need trip details
+    
+    // Map backend format to frontend format
+    const duration = trip.start_date && trip.end_date 
+      ? Math.ceil((new Date(trip.end_date).getTime() - new Date(trip.start_date).getTime()) / (1000 * 60 * 60 * 24))
+      : 1;
+
+    return {
+      trip_id: raw.trip_id,
+      name: trip.name,
+      start_date: trip.start_date,
+      end_date: trip.end_date,
+      duration_days: duration,
+      cover_image: trip.cover_photo,
+      stops: raw.stops.map((stop: any) => ({
+        id: stop.id,
+        city_id: stop.city_id,
+        city_name: stop.city_id, // we don't have city details joined in MVP backend easily, frontend needs a mapper or we just put the UUID
+        country: '',
+        start_date: stop.start_date,
+        end_date: stop.end_date,
+        order_index: stop.order_index,
+        activities: stop.activities.map((act: any) => ({
+          id: act.id,
+          activity_id: act.activity_id || act.id,
+          custom_name: act.custom_name,
+          scheduled_time: act.scheduled_time, // will need ISO formatting adjustments later
+          cost_estimate: act.cost_estimate,
+          notes: act.notes,
+        }))
+      }))
+    };
   },
 
-  async saveItinerary(itinerary: Itinerary): Promise<void> {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        mockItineraries[itinerary.trip_id] = JSON.parse(JSON.stringify(itinerary));
-        resolve();
-      }, 800);
+  async saveItinerary(itinerary: Itinerary): Promise<Itinerary> {
+    const payload = {
+      stops: itinerary.stops.map(stop => ({
+        city_id: stop.city_id,
+        start_date: stop.start_date,
+        end_date: stop.end_date,
+        order_index: stop.order_index,
+        activities: stop.activities.map(act => ({
+          activity_id: act.activity_id.startsWith('sys-') ? null : act.activity_id,
+          custom_name: act.custom_name,
+          scheduled_time: act.scheduled_time ? `${act.scheduled_date || itinerary.start_date}T${act.scheduled_time}:00Z` : null,
+          cost_estimate: act.cost_estimate,
+          notes: act.notes || null,
+        }))
+      }))
+    };
+
+    await apiClient(`/trips/${itinerary.trip_id}/itinerary/bulk`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
     });
+
+    return this.getItinerary(itinerary.trip_id);
   }
 };
