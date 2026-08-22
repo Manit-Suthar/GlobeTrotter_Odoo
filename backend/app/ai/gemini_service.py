@@ -145,3 +145,4 @@ def get_trip_suggestions(request: TripSuggestionRequest) -> TripSuggestionRespon
         return TripSuggestionResponse(suggestions=response.text or "No suggestions generated.")
     except Exception as exc:
         return TripSuggestionResponse(suggestions=f"Error generating suggestions: {str(exc)}")
+
