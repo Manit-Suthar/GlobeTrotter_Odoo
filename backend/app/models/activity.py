@@ -14,9 +14,12 @@ class Activity(Base):
     category = Column(String(50), nullable=True, index=True)
     default_cost = Column(Float, default=0.0, nullable=False)
     default_duration_minutes = Column(Integer, default=60, nullable=False)
+    rating = Column(Float, nullable=True)
+    image_url = Column(String(500), nullable=True)
+    tags = Column(String(255), nullable=True)
 
     city = relationship("City", back_populates="activities")
     trip_activities = relationship("TripActivity", back_populates="activity")
 
     def __repr__(self) -> str:
-        return f"<Activity(id={self.id}, name='{self.name}', category='{self.category}')>"
+        return f"<Activity(id={self.id}, name='{self.name}', category='{self.category}', cost={self.default_cost})>"

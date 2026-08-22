@@ -3,7 +3,11 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-load_dotenv()
+# Load .env from backend/ or project root
+current_dir = os.path.dirname(os.path.abspath(__file__))
+backend_root = os.path.abspath(os.path.join(current_dir, "../.."))
+load_dotenv(os.path.join(backend_root, ".env"))
+load_dotenv(os.path.join(os.getcwd(), ".env"))
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/globetrotter")
 
