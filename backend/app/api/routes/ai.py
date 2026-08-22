@@ -6,7 +6,11 @@ from app.schemas.ai import (
     TripIntentResponse,
     TripSuggestionRequest,
     TripSuggestionResponse,
+    GenerateItineraryRequest,
+    GenerateItineraryResponse
 )
+from app.api.deps import get_db
+from sqlalchemy.orm import Session
 from app.ai import gemini_service
 
 router = APIRouter()
@@ -28,3 +32,14 @@ def suggest_trip(
 ):
     return gemini_service.get_trip_suggestions(request)
 
+
+@router.post("/generate-itinerary", response_model=GenerateItineraryResponse)
+def generate_itinerary(
+    request: GenerateItineraryRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Generate a full structured itinerary mapped to database UUIDs based on the user's intent.
+    """
+    return gemini_service.generate_itinerary_from_db(request, db)
