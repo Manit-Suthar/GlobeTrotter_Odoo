@@ -101,6 +101,18 @@ def get_itinerary(
 ):
     return itinerary_service.get_itinerary(db=db, trip_id=trip_id, user_id=current_user.id)
 
+from app.schemas.itinerary import ItineraryBulkUpdate
+
+@router.post("/{trip_id}/itinerary/bulk", response_model=ItineraryRead)
+def bulk_update_itinerary(
+    trip_id: uuid.UUID,
+    bulk_in: ItineraryBulkUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return itinerary_service.bulk_update_itinerary(db=db, trip_id=trip_id, bulk_in=bulk_in, user_id=current_user.id)
+
+
 from app.schemas.budget import BudgetResponse
 from app.services import budget_service
 

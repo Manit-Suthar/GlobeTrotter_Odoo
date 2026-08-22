@@ -67,3 +67,23 @@ class ItineraryStop(TripStopRead):
 class ItineraryRead(BaseModel):
     trip_id: uuid.UUID
     stops: List[ItineraryStop] = []
+
+# --- Bulk Update Schemas (Frontend mapping) ---
+class BulkActivityUpdate(BaseModel):
+    activity_id: Optional[str] = None
+    custom_name: str
+    scheduled_time: Optional[datetime] = None
+    cost_estimate: float
+    notes: Optional[str] = None
+    # We can ignore frontend ID
+
+class BulkStopUpdate(BaseModel):
+    city_id: uuid.UUID
+    start_date: date
+    end_date: date
+    order_index: int
+    activities: List[BulkActivityUpdate] = []
+    # We can ignore frontend ID
+
+class ItineraryBulkUpdate(BaseModel):
+    stops: List[BulkStopUpdate]
