@@ -94,9 +94,9 @@ export const AdminDashboardPage = () => {
                  <TrendingUp size={20} className="mr-2 text-purple-600" /> Weekly Engagement
               </h3>
               
-              <div className="h-64 flex items-end justify-between gap-2 pt-4">
-                 {data.tripsOverTime.map(day => (
-                    <div key={day.date} className="flex-1 flex flex-col items-center group">
+              <div className="flex h-40 items-end space-x-2">
+                {(data?.tripsOverTime || []).map((day, i) => (
+                  <div key={i} className="flex-1 flex flex-col items-center group">
                        <div className="opacity-0 group-hover:opacity-100 text-xs font-bold text-gray-900 mb-2 transition-opacity">{day.count}</div>
                        <div className="w-full bg-purple-100 hover:bg-purple-500 rounded-t-lg transition-colors relative" style={{ height: `${(day.count / 50) * 100}%` }}></div>
                        <div className="text-xs font-bold text-gray-400 mt-3">{day.date}</div>

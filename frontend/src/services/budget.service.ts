@@ -1,3 +1,5 @@
+import { apiClient } from '../utils/api';
+
 export interface BudgetCategory {
   name: string;
   amount: number;
@@ -11,26 +13,27 @@ export interface TripBudget {
   days: number;
 }
 
-const MOCK_BUDGET: TripBudget = {
-  total: 82450,
-  days: 8,
-  daily_average: 10306,
-  by_category: {
-    transport: 18000,
-    accommodation: 32000,
-    activities: 14500,
-    meals: 17950
-  }
-};
-
 export const budgetService = {
   async getBudget(tripId: string): Promise<TripBudget> {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({
-           ...MOCK_BUDGET
-        });
-      }, 700);
-    });
+    const rawBudget = await apiClient(`/trips/${tripId}/budget`, { method: 'GET' });
+    
+    // The backend `BudgetResponse` has:
+    // total: float
+    // by_category: Dict[str, float]
+    // daily_average: float
+    // We need to also calculate 'days' if we want, or default to whatever frontend needs.
+    // The backend computed days but didn't return it. We can derive it:
+    
+    let days = 1;
+    if (rawBudget.daily_average > 0) {
+      days = Math.round(rawBudget.total / rawBudget.daily_average);
+    }
+    
+    return {
+      total: rawBudget.total,
+      by_category: rawBudget.by_category,
+      daily_average: rawBudget.daily_average,
+      days: days
+    };
   }
 };

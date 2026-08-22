@@ -1,34 +1,48 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { AuthLayout } from '../components/auth/AuthLayout';
 import { AuthInput } from '../components/auth/AuthInput';
 import { PasswordInput } from '../components/auth/PasswordInput';
-import { authService } from '../services/auth.service';
+import { useAuth } from '../contexts/AuthContext';
 
 export const LoginPage = () => {
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const location = useLocation();
+  const { login } = useAuth();
+  
+  const from = location.state?.from?.pathname || '/dashboard';
+  
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+  });
+  const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value, type, checked } = e.target;
+    if (type === 'checkbox') {
+      setRememberMe(checked);
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     
-    if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
-      setError('Please enter a valid email address.');
-      return;
-    }
-    if (!password) {
-      setError('Password is required.');
+    if (!formData.email || !formData.password) {
+      setError('Please enter both email and password.');
       return;
     }
 
     setLoading(true);
     try {
-      await authService.login(email, password);
-      navigate('/dashboard');
+      console.log('Logging in user, remember me:', rememberMe);
+      await login(formData.email, formData.password);
+      navigate(from, { replace: true });
     } catch (err: any) {
       setError(err.message || 'Unable to sign you in. Please check your credentials.');
     } finally {
@@ -53,9 +67,10 @@ export const LoginPage = () => {
         <AuthInput
           label="Email address"
           type="email"
+          name="email"
           id="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          value={formData.email}
+          onChange={handleChange}
           placeholder="you@example.com"
           disabled={loading}
           autoComplete="email"
@@ -65,9 +80,10 @@ export const LoginPage = () => {
         <div>
           <PasswordInput
             label="Password"
+            name="password"
             id="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            value={formData.password}
+            onChange={handleChange}
             placeholder="••••••••"
             disabled={loading}
             autoComplete="current-password"

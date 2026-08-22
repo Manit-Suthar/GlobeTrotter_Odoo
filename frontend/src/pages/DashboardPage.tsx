@@ -7,7 +7,10 @@ import { tripsService, type TripSummary } from '../services/trips.service';
 import { citiesService, type City } from '../services/cities.service';
 import { AlertCircle } from 'lucide-react';
 
+import { useAuth } from '../contexts/AuthContext';
+
 export const DashboardPage = () => {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [trips, setTrips] = useState<TripSummary[]>([]);
@@ -61,8 +64,7 @@ export const DashboardPage = () => {
 
   return (
     <div className="animate-in fade-in duration-500">
-      {/* Fallback mock authenticated user name to match design spec */}
-      <WelcomeHero userName="Manasvi" />
+      <WelcomeHero userName={user?.name || 'Traveler'} />
       
       {/* Optional Budget Highlight - lightweight travel info */}
       {totalEstimatedCost > 0 && (

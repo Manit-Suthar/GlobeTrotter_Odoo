@@ -14,38 +14,45 @@ import { ProfilePage } from './pages/ProfilePage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { PublicItineraryPage } from './pages/PublicItineraryPage';
 
+import { AuthProvider } from './contexts/AuthContext';
+import { ProtectedRoute } from './components/auth/ProtectedRoute';
+
 const App = () => {
   return (
-    <BrowserRouter>
-      <Routes>
-        {/* Auth Routes */}
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/signup" element={<SignupPage />} />
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          {/* Auth Routes */}
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/signup" element={<SignupPage />} />
 
-        {/* Dashboard Routes (Authenticated) */}
-        <Route element={<DashboardLayout />}>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
+          {/* Dashboard Routes (Authenticated) */}
+          <Route element={<ProtectedRoute />}>
+            <Route element={<DashboardLayout />}>
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/dashboard" element={<DashboardPage />} />
+              
+              <Route path="/my-trips" element={<MyTripsPage />} />
+              <Route path="/explore" element={<Navigate to="/activities/search" replace />} />
+              <Route path="/create-trip" element={<CreateTripPage />} />
+              
+              <Route path="/activities/search" element={<ActivitySearchPage />} />
+              <Route path="/profile" element={<ProfilePage />} />
+              <Route path="/admin" element={<AdminDashboardPage />} />
+              
+              {/* Trip Sub-routes */}
+              <Route path="/trips/:id/builder" element={<ItineraryBuilderPage />} />
+              <Route path="/trips/:id" element={<ItineraryViewPage />} />
+              <Route path="/trips/:id/budget" element={<BudgetPage />} />
+              <Route path="/trips/:id/calendar" element={<TripCalendarPage />} />
+            </Route>
+          </Route>
           
-          <Route path="/my-trips" element={<MyTripsPage />} />
-          <Route path="/explore" element={<Navigate to="/activities/search" replace />} />
-          <Route path="/create-trip" element={<CreateTripPage />} />
-          
-          <Route path="/activities/search" element={<ActivitySearchPage />} />
-          <Route path="/profile" element={<ProfilePage />} />
-          <Route path="/admin" element={<AdminDashboardPage />} />
-          
-          {/* Trip Sub-routes */}
-          <Route path="/trips/:id/builder" element={<ItineraryBuilderPage />} />
-          <Route path="/trips/:id" element={<ItineraryViewPage />} />
-          <Route path="/trips/:id/budget" element={<BudgetPage />} />
-          <Route path="/trips/:id/calendar" element={<TripCalendarPage />} />
-        </Route>
-        
-        {/* Public Routes */}
-        <Route path="/public/:shareId" element={<PublicItineraryPage />} />
-      </Routes>
-    </BrowserRouter>
+          {/* Public Routes */}
+          <Route path="/public/:shareId" element={<PublicItineraryPage />} />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
   );
 };
 
