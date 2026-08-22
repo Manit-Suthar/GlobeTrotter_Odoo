@@ -1,10 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { ArrowRight, ArrowLeft, Calendar as CalendarIcon, Loader2, AlertCircle } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Calendar as CalendarIcon, Loader2, AlertCircle, Sparkles } from 'lucide-react';
 import { TripProgress } from '../components/trip/TripProgress';
 import { TripCoverUpload } from '../components/trip/TripCoverUpload';
 import { AuthInput } from '../components/auth/AuthInput';
 import { tripsService } from '../services/trips.service';
+import { aiService } from '../services/ai.service';
 
 export const CreateTripPage = () => {
   const navigate = useNavigate();
@@ -20,6 +21,8 @@ export const CreateTripPage = () => {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generationStep, setGenerationStep] = useState('');
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -84,6 +87,48 @@ export const CreateTripPage = () => {
     }
   };
 
+  // Describe the trip once and let Gemini plan and save the whole itinerary.
+  const handleGenerate = async () => {
+    setSubmitError('');
+
+    if (!formData.description.trim()) {
+      setErrors(prev => ({ ...prev, description: 'Tell us what you want from this trip so the planner has something to work with.' }));
+      return;
+    }
+
+    setIsGenerating(true);
+    setGenerationStep('Understanding your travel style...');
+
+    // The request is a single call; these steps just narrate the wait.
+    const stepTimers = [
+      setTimeout(() => setGenerationStep('Matching cities, stays and activities...'), 3500),
+      setTimeout(() => setGenerationStep('Scheduling your days...'), 9000),
+      setTimeout(() => setGenerationStep('Almost there, saving your itinerary...'), 15000),
+    ];
+
+    try {
+      const result = await aiService.createTripFromPrompt({
+        title: formData.name || undefined,
+        start_date: formData.start_date || undefined,
+        end_date: formData.end_date || undefined,
+        description: formData.description,
+        cover_image: formData.cover_image || undefined,
+      });
+      navigate(`/trips/${result.trip_id}/builder`);
+    } catch (err) {
+      console.error('AI trip generation failed:', err);
+      setSubmitError(
+        err instanceof Error && err.message
+          ? `We couldn't plan this trip: ${err.message}`
+          : 'We couldn\'t plan this trip right now. You can still create it manually below.'
+      );
+      setIsGenerating(false);
+    } finally {
+      stepTimers.forEach(clearTimeout);
+      setGenerationStep('');
+    }
+  };
+
   // Calculate duration
   const tripDuration = useMemo(() => {
     if (formData.start_date && formData.end_date && !errors.end_date) {
@@ -141,9 +186,52 @@ export const CreateTripPage = () => {
                 rows={4}
                 value={formData.description}
                 onChange={handleChange}
-                placeholder="What are you hoping to experience on this journey? (e.g. Exploring ancient temples, trying local street food...)"
-                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all resize-none text-gray-900 placeholder-gray-400"
+                placeholder="What are you hoping to experience on this journey? (e.g. 5 days in Jaipur and Udaipur, budget stays, palaces and street food, slow pace)"
+                className={`w-full px-4 py-3 bg-white border ${errors.description ? 'border-red-500' : 'border-gray-200'} rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all resize-none text-gray-900 placeholder-gray-400`}
               />
+              {errors.description && (
+                <p className="mt-1.5 text-sm text-red-600 font-medium">{errors.description}</p>
+              )}
+            </div>
+
+            {/* AI auto-planner */}
+            <div className="bg-gradient-to-br from-teal-50 to-indigo-50 border border-teal-100 rounded-2xl p-5">
+              <div className="flex items-start gap-3 mb-4">
+                <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center text-teal-600 shadow-sm flex-shrink-0">
+                  <Sparkles size={18} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-gray-900 leading-tight">Plan it for me</h3>
+                  <p className="text-sm text-gray-600 font-medium mt-0.5">
+                    We'll pick your cities, stays and day-by-day activities from our database — no manual building.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleGenerate}
+                disabled={isGenerating || isSubmitting}
+                className="w-full flex justify-center items-center py-3 px-4 rounded-lg shadow-md text-base font-bold text-white bg-gray-900 hover:bg-gray-800 disabled:opacity-70 disabled:cursor-not-allowed transition-all transform hover:-translate-y-0.5 disabled:hover:translate-y-0"
+              >
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="animate-spin -ml-1 mr-2" size={20} />
+                    {generationStep || 'Planning your trip...'}
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={18} className="mr-2" />
+                    Generate my itinerary
+                  </>
+                )}
+              </button>
+
+              {isGenerating && (
+                <p className="text-xs text-gray-500 font-medium text-center mt-3">
+                  This usually takes 10–20 seconds. Hang tight.
+                </p>
+              )}
             </div>
           </div>
 
@@ -222,7 +310,7 @@ export const CreateTripPage = () => {
             <div className="pt-6 mt-auto">
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || isGenerating}
                 className="w-full flex justify-center items-center py-3.5 px-4 border border-transparent rounded-lg shadow-md text-base font-bold text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 disabled:opacity-70 disabled:cursor-not-allowed transition-all transform hover:-translate-y-0.5"
               >
                 {isSubmitting ? (
@@ -232,10 +320,13 @@ export const CreateTripPage = () => {
                   </>
                 ) : (
                   <>
-                    Create Trip <ArrowRight size={20} className="ml-2" />
+                    Create empty trip <ArrowRight size={20} className="ml-2" />
                   </>
                 )}
               </button>
+              <p className="text-xs text-gray-400 font-medium text-center mt-2.5">
+                Starts blank so you can add stops yourself.
+              </p>
               
               <div className="mt-5 text-center">
                 <Link 

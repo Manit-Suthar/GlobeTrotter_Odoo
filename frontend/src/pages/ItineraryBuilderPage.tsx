@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Save, Loader2, AlertCircle, Plus, MapPin } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, AlertCircle, Plus, MapPin, LayoutList, GanttChartSquare } from 'lucide-react';
 import { itineraryService, type Itinerary, type TripStop, type TripActivity } from '../services/itinerary.service';
 import { ItinerarySkeleton } from '../components/itinerary/ItinerarySkeleton';
 import { ItineraryEmptyState } from '../components/itinerary/ItineraryEmptyState';
@@ -8,6 +8,7 @@ import { StopSection } from '../components/itinerary/StopSection';
 import { AddStopModal } from '../components/itinerary/AddStopModal';
 import { AddActivityModal } from '../components/itinerary/AddActivityModal';
 import { SelectHotelModal } from '../components/itinerary/SelectHotelModal';
+import { TripTimeline } from '../components/itinerary/TripTimeline';
 import type { Hotel } from '../services/hotels.service';
 
 export const ItineraryBuilderPage = () => {
@@ -25,6 +26,7 @@ export const ItineraryBuilderPage = () => {
   const [showAddStop, setShowAddStop] = useState(false);
   const [activeStopIdForActivity, setActiveStopIdForActivity] = useState<string | null>(null);
   const [activeStopIdForHotel, setActiveStopIdForHotel] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'build' | 'timeline'>('build');
 
   useEffect(() => {
     if (!id) return;
@@ -188,6 +190,24 @@ export const ItineraryBuilderPage = () => {
         </div>
         
         <div className="flex items-center gap-4">
+          <div className="flex items-center bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode('build')}
+              className={`inline-flex items-center px-3 py-1.5 rounded-md text-sm font-bold transition-all ${
+                viewMode === 'build' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <LayoutList size={16} className="mr-1.5" /> Build
+            </button>
+            <button
+              onClick={() => setViewMode('timeline')}
+              className={`inline-flex items-center px-3 py-1.5 rounded-md text-sm font-bold transition-all ${
+                viewMode === 'timeline' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <GanttChartSquare size={16} className="mr-1.5" /> Timeline
+            </button>
+          </div>
           {hasUnsavedChanges && !isSaving && (
             <span className="text-sm font-bold text-amber-600 bg-amber-50 px-3 py-1 rounded-full border border-amber-200 animate-in fade-in">
               Unsaved changes
@@ -218,7 +238,9 @@ export const ItineraryBuilderPage = () => {
 
       {/* Main Content Area */}
       <div className="px-2 sm:px-4">
-        {itinerary.stops.length === 0 ? (
+        {viewMode === 'timeline' ? (
+          <TripTimeline itinerary={itinerary} />
+        ) : itinerary.stops.length === 0 ? (
           <ItineraryEmptyState onAddStop={() => setShowAddStop(true)} />
         ) : (
           <div className="space-y-0">

@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Edit3, Share2, AlertCircle, LayoutList, Calendar as CalendarIcon } from 'lucide-react';
+import { ArrowLeft, Edit3, Share2, AlertCircle, LayoutList, Calendar as CalendarIcon, GanttChartSquare } from 'lucide-react';
 import { itineraryService, type Itinerary } from '../services/itinerary.service';
 import { ItineraryViewSkeleton } from '../components/itinerary/ItineraryViewSkeleton';
 import { CityJourneySection } from '../components/itinerary/CityJourneySection';
 import { ItineraryCalendar } from '../components/itinerary/ItineraryCalendar';
+import { TripTimeline } from '../components/itinerary/TripTimeline';
 
 export const ItineraryViewPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -12,7 +13,7 @@ export const ItineraryViewPage = () => {
   const [itinerary, setItinerary] = useState<Itinerary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
+  const [viewMode, setViewMode] = useState<'list' | 'calendar' | 'timeline'>('list');
 
   useEffect(() => {
     if (!id) return;
@@ -110,7 +111,13 @@ export const ItineraryViewPage = () => {
                 >
                   <LayoutList size={18} className="mr-2" /> List View
                 </button>
-                <button 
+                <button
+                  onClick={() => setViewMode('timeline')}
+                  className={`px-5 py-2.5 rounded-lg text-sm font-bold flex items-center transition-colors ${viewMode === 'timeline' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}
+                >
+                  <GanttChartSquare size={18} className="mr-2" /> Timeline
+                </button>
+                <button
                   onClick={() => setViewMode('calendar')}
                   className={`px-5 py-2.5 rounded-lg text-sm font-bold flex items-center transition-colors ${viewMode === 'calendar' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}
                 >
@@ -120,7 +127,9 @@ export const ItineraryViewPage = () => {
             </div>
 
             {/* Main View Area */}
-            {viewMode === 'calendar' ? (
+            {viewMode === 'timeline' ? (
+              <TripTimeline itinerary={itinerary} />
+            ) : viewMode === 'calendar' ? (
               <ItineraryCalendar itinerary={itinerary} />
             ) : (
               <div className="space-y-4">
