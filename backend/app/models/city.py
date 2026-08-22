@@ -20,6 +20,7 @@ class City(Base):
     best_season = Column(String(50), nullable=True)
 
     activities = relationship("Activity", back_populates="city", cascade="all, delete-orphan", passive_deletes=True)
+    hotels = relationship("Hotel", back_populates="city", cascade="all, delete-orphan", passive_deletes=True)
     trip_stops = relationship("TripStop", back_populates="city")
 
     def __repr__(self) -> str:

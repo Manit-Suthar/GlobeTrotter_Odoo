@@ -48,6 +48,7 @@ class TripStop(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     trip_id = Column(UUID(as_uuid=True), ForeignKey("trips.id", ondelete="CASCADE"), nullable=False, index=True)
     city_id = Column(UUID(as_uuid=True), ForeignKey("cities.id", ondelete="RESTRICT"), nullable=False, index=True)
+    hotel_id = Column(UUID(as_uuid=True), ForeignKey("hotels.id", ondelete="SET NULL"), nullable=True, index=True)
     order_index = Column(Integer, default=0, nullable=False)
     start_date = Column(Date, nullable=True)
     end_date = Column(Date, nullable=True)
@@ -55,6 +56,7 @@ class TripStop(Base):
 
     trip = relationship("Trip", back_populates="stops")
     city = relationship("City", back_populates="trip_stops")
+    hotel = relationship("Hotel", back_populates="trip_stops")
     activities = relationship(
         "TripActivity",
         back_populates="stop",

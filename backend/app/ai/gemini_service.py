@@ -1,6 +1,8 @@
 import json
 import logging
-from datetime import datetime
+import time
+import uuid
+from datetime import date, datetime, timedelta
 from typing import Optional
 from fastapi import HTTPException, status
 
@@ -53,6 +55,40 @@ You MUST respond strictly with a valid JSON object matching this structure:
 Do not include markdown code block formatting (like ```json), commentary, or extra text. Output ONLY valid raw JSON.
 """
 
+GENERATE_ATTEMPTS = 3
+
+
+def _generate_with_retry(client, *, contents: str, config, label: str):
+    """Call Gemini, retrying transient transport failures.
+
+    The API occasionally drops the connection mid-request ("Server disconnected without
+    sending a response"); a plain retry succeeds, so don't fail a trip over it.
+    """
+    last_error: Optional[Exception] = None
+
+    for attempt in range(1, GENERATE_ATTEMPTS + 1):
+        try:
+            response = client.models.generate_content(
+                model="gemini-3.6-flash",
+                contents=contents,
+                config=config,
+            )
+            if response and response.text:
+                return response
+            last_error = ValueError("Empty response from Gemini")
+        except Exception as exc:
+            last_error = exc
+            logger.warning(f"Gemini {label} attempt {attempt}/{GENERATE_ATTEMPTS} failed: {exc}")
+
+        if attempt < GENERATE_ATTEMPTS:
+            time.sleep(1.5 * attempt)
+
+    raise HTTPException(
+        status_code=status.HTTP_502_BAD_GATEWAY,
+        detail=f"Gemini API execution failed after {GENERATE_ATTEMPTS} attempts: {last_error}"
+    )
+
+
 def _calculate_duration(start_date: Optional[str], end_date: Optional[str]) -> Optional[int]:
     if not start_date or not end_date:
         return None
@@ -84,21 +120,16 @@ Start Date: {request.start_date or 'Not provided'}
 End Date: {request.end_date or 'Not provided'}
 Description / Notes: {request.description or 'Not provided'}"""
 
-        response = client.models.generate_content(
-            model="gemini-3.6-flash",
+        response = _generate_with_retry(
+            client,
             contents=user_content,
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_PROMPT,
                 response_mime_type="application/json",
                 temperature=0.2
-            )
+            ),
+            label="intent",
         )
-
-        if not response or not response.text:
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail="Empty response received from Gemini API."
-            )
 
         raw_json = response.text.strip()
         # Clean potential markdown wrapping if returned
@@ -164,6 +195,7 @@ def get_trip_suggestions(request: TripSuggestionRequest) -> TripSuggestionRespon
 from sqlalchemy.orm import Session
 from app.models.city import City
 from app.models.activity import Activity
+from app.models.hotel import Hotel
 from app.schemas.ai import GenerateItineraryRequest, GenerateItineraryResponse
 
 # --- PHASE 2: Database-Contextualized Itinerary Generation ---
@@ -172,14 +204,18 @@ ITINERARY_SYSTEM_PROMPT = """You are an AI travel itinerary planner specializing
 
 You will be given:
 1. The user's travel intent (destinations, pace, interests, budget).
-2. A JSON dump of matching cities and activities available in our database.
+2. A JSON dump of matching cities, activities, and hotels available in our database.
 
 You MUST follow these rules strictly:
 - Schedule a realistic daily itinerary matching the user's intent.
 - You must create stops for the cities. Use the EXACT city_id (UUID) provided in the database dump.
-- Schedule ctivities for each stop. If you use a database activity, use its EXACT ctivity_id (UUID) and cost_estimate.
-- If the database lacks a specific activity or hotel, you can invent a custom one by setting ctivity_id to null and providing a custom_name.
+- Schedule activities for each stop. If you use a database activity, use its EXACT activity_id (UUID) and cost_estimate.
+- Every activity you schedule MUST belong to that stop's city in the database dump.
+- Pick exactly one hotel per stop using the EXACT hotel_id (UUID) listed for that stop's city. Match the hotel's budget_category to the traveller's budget preference (low/moderate/premium/luxury). Use null only if the dump lists no hotel for that city.
+- If the database lacks a specific activity, you can invent a custom one by setting activity_id to null and providing a custom_name.
 - You must assign sequential order_index (starting at 0) to stops.
+- Stops must not overlap: each stop's start_date must be on or after the previous stop's end_date, and every date must stay inside the traveller's overall trip window.
+- Schedule 2-4 activities per day at a moderate pace, fewer when the pace is slow, more when fast-paced.
 - Format times as ISO-8601 strings (e.g. 2026-10-01T09:00:00Z) if start_date is known, otherwise pick arbitrary sequential dates starting today.
 
 You MUST respond strictly with a valid JSON object matching this structure:
@@ -187,6 +223,7 @@ You MUST respond strictly with a valid JSON object matching this structure:
   "stops": [
     {
       "city_id": "uuid-of-city",
+      "hotel_id": "uuid-of-hotel-or-null",
       "start_date": "YYYY-MM-DD",
       "end_date": "YYYY-MM-DD",
       "order_index": 0,
@@ -205,68 +242,230 @@ You MUST respond strictly with a valid JSON object matching this structure:
 Do not include markdown code block formatting. Output ONLY valid raw JSON.
 """
 
+def _resolve_cities(request: GenerateItineraryRequest, db: Session) -> list[City]:
+    """Find the DB cities the itinerary may use, falling back to popular ones."""
+    from sqlalchemy import or_
+
+    cities: list[City] = []
+    if request.destinations:
+        conditions = [City.name.ilike(f"%{dest}%") for dest in request.destinations]
+        cities = db.query(City).filter(or_(*conditions)).limit(10).all()
+
+    if not cities:
+        cities = db.query(City).order_by(City.popularity.desc()).limit(5).all()
+
+    return cities
+
+
+def _build_db_context(cities: list[City], db: Session) -> str:
+    """Dump the cities, activities and hotels Gemini is allowed to choose from."""
+    cities_data = []
+    activities_data = []
+    hotels_data = []
+
+    for city in cities:
+        cities_data.append({
+            "city_id": str(city.id),
+            "name": city.name,
+            "state": city.state,
+        })
+
+        for act in db.query(Activity).filter(Activity.city_id == city.id).order_by(
+            Activity.rating.desc().nullslast()
+        ).limit(15).all():
+            activities_data.append({
+                "activity_id": str(act.id),
+                "city_id": str(city.id),
+                "city_name": city.name,
+                "name": act.name,
+                "category": act.category,
+                "default_cost": act.default_cost,
+                "duration_minutes": act.default_duration_minutes,
+            })
+
+        for hotel in db.query(Hotel).filter(Hotel.city_id == city.id).order_by(
+            Hotel.rating.desc().nullslast()
+        ).limit(10).all():
+            hotels_data.append({
+                "hotel_id": str(hotel.id),
+                "city_id": str(city.id),
+                "city_name": city.name,
+                "name": hotel.name,
+                "hotel_type": hotel.hotel_type,
+                "price_per_night": hotel.price_per_night,
+                "budget_category": hotel.budget_category,
+                "rating": hotel.rating,
+            })
+
+    return json.dumps({
+        "available_cities": cities_data,
+        "available_activities": activities_data,
+        "available_hotels": hotels_data,
+    })
+
+
+def _as_uuid(value) -> Optional[uuid.UUID]:
+    try:
+        return uuid.UUID(str(value))
+    except (ValueError, TypeError, AttributeError):
+        return None
+
+
+def _as_date(value) -> Optional[date]:
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(str(value)[:10])
+    except ValueError:
+        return None
+
+
+def _sanitize_stops(
+    parsed_data: dict,
+    db: Session,
+    allowed_cities: list[City],
+    trip_start: Optional[date] = None,
+    trip_end: Optional[date] = None,
+) -> list[dict]:
+    """Keep only what the database can actually confirm.
+
+    A language model can hallucinate UUIDs, cross-assign a Goa hotel to a Jaipur stop, or
+    drift outside the trip window, so every id and date is re-checked here before it is
+    ever written to the database.
+    """
+    allowed_city_ids = {city.id for city in allowed_cities}
+    stops_in = parsed_data.get("stops") or []
+
+    clean_stops: list[dict] = []
+    cursor = trip_start
+
+    for stop_in in stops_in:
+        city_id = _as_uuid(stop_in.get("city_id"))
+        if not city_id or city_id not in allowed_city_ids:
+            logger.warning("Dropping AI stop with unknown city_id: %s", stop_in.get("city_id"))
+            continue
+
+        # Dates: trust the model, but keep them ordered and inside the trip window.
+        start = _as_date(stop_in.get("start_date")) or cursor or date.today()
+        end = _as_date(stop_in.get("end_date")) or start
+        if cursor and start < cursor:
+            start = cursor
+        if end < start:
+            end = start
+        if trip_end:
+            start = min(start, trip_end)
+            end = min(end, trip_end)
+
+        # Hotel must exist and belong to this stop's city.
+        hotel_id = _as_uuid(stop_in.get("hotel_id"))
+        if hotel_id:
+            hotel = db.query(Hotel).filter(Hotel.id == hotel_id, Hotel.city_id == city_id).first()
+            if not hotel:
+                logger.warning("Dropping AI hotel not in city %s: %s", city_id, hotel_id)
+                hotel_id = None
+
+        clean_activities = []
+        for act_in in stop_in.get("activities") or []:
+            activity_id = _as_uuid(act_in.get("activity_id"))
+            catalog = None
+            if activity_id:
+                catalog = db.query(Activity).filter(
+                    Activity.id == activity_id, Activity.city_id == city_id
+                ).first()
+                if not catalog:
+                    logger.warning("Dropping AI activity not in city %s: %s", city_id, activity_id)
+                    activity_id = None
+
+            custom_name = (act_in.get("custom_name") or (catalog.name if catalog else "")).strip()
+            if not custom_name:
+                continue
+
+            scheduled = act_in.get("scheduled_time")
+            scheduled_date = _as_date(scheduled)
+            if not scheduled_date or scheduled_date < start or scheduled_date > end:
+                scheduled = f"{start.isoformat()}T{9 + min(len(clean_activities) * 2, 10):02d}:00:00Z"
+
+            cost = act_in.get("cost_estimate")
+            if cost is None:
+                cost = catalog.default_cost if catalog else 0.0
+
+            clean_activities.append({
+                "activity_id": str(activity_id) if activity_id else None,
+                "custom_name": custom_name,
+                "scheduled_time": scheduled,
+                "cost_estimate": float(cost),
+                "notes": act_in.get("notes"),
+            })
+
+        clean_stops.append({
+            "city_id": str(city_id),
+            "hotel_id": str(hotel_id) if hotel_id else None,
+            "start_date": start.isoformat(),
+            "end_date": end.isoformat(),
+            "order_index": len(clean_stops),
+            "activities": clean_activities,
+        })
+        cursor = end
+
+    return clean_stops
+
+
 def generate_itinerary_from_db(request: GenerateItineraryRequest, db: Session) -> GenerateItineraryResponse:
     if not settings.GEMINI_API_KEY:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Gemini API key is not configured."
         )
-        
+
     client = genai.Client(api_key=settings.GEMINI_API_KEY)
-    
-    # 1. Look up cities mentioned in destinations
-    cities_data = []
-    activities_data = []
-    
-    if request.destinations:
-        from sqlalchemy import or_
-        conditions = [City.name.ilike(f"%{dest}%") for dest in request.destinations]
-        cities = db.query(City).filter(or_(*conditions)).limit(10).all()
-        
-        # Fallback if no exact cities matched
-        if not cities:
-            cities = db.query(City).order_by(City.popularity.desc()).limit(5).all()
-            
-        for city in cities:
-            cities_data.append({
-                "city_id": str(city.id),
-                "name": city.name,
-                "state": city.state
-            })
-            
-            city_activities = db.query(Activity).filter(Activity.city_id == city.id).limit(10).all()
-            for act in city_activities:
-                activities_data.append({
-                    "activity_id": str(act.id),
-                    "city_name": city.name,
-                    "name": act.name,
-                    "category": act.category,
-                    "default_cost": act.default_cost,
-                    "duration_minutes": act.default_duration_minutes
-                })
-                
-    db_context_json = json.dumps({
-        "available_cities": cities_data,
-        "available_activities": activities_data
-    })
-    
+
+    cities = _resolve_cities(request, db)
+    if not cities:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="No cities available in the database to build an itinerary from."
+        )
+
+    db_context_json = _build_db_context(cities, db)
     user_context = f"Intent: {request.model_dump_json()}\n\nDatabase Context: {db_context_json}"
-    
-    response = client.models.generate_content(
-        model="gemini-3.6-flash",
+
+    response = _generate_with_retry(
+        client,
         contents=user_context,
         config=types.GenerateContentConfig(
             system_instruction=ITINERARY_SYSTEM_PROMPT,
             response_mime_type="application/json",
             temperature=0.3
-        )
+        ),
+        label="itinerary",
     )
-    
+
     raw_json = response.text.strip()
-    if raw_json.startswith("`"):
-        raw_json = raw_json.strip("").removeprefix("json").strip()
-        
-    parsed_data = json.loads(raw_json)
-    
-    return GenerateItineraryResponse(**parsed_data)
+    if raw_json.startswith("```"):
+        raw_json = raw_json.strip("`").removeprefix("json").strip()
+
+    try:
+        parsed_data = json.loads(raw_json)
+    except json.JSONDecodeError as exc:
+        logger.error(f"Failed to parse Gemini itinerary as JSON: {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Malformed itinerary output from Gemini: {str(exc)}"
+        )
+
+    clean_stops = _sanitize_stops(
+        parsed_data,
+        db,
+        cities,
+        trip_start=_as_date(request.start_date),
+        trip_end=_as_date(request.end_date),
+    )
+
+    if not clean_stops:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Gemini did not return any itinerary stops that match our database."
+        )
+
+    return GenerateItineraryResponse(stops=clean_stops)
 

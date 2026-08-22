@@ -1,3 +1,5 @@
+import uuid
+from datetime import date
 from pydantic import BaseModel, Field
 from typing import List, Optional
 
@@ -42,6 +44,27 @@ class GenerateItineraryRequest(BaseModel):
     additional_constraints: List[str] = []
     description: Optional[str] = None
     start_date: Optional[str] = None
+    end_date: Optional[str] = None
 
 class GenerateItineraryResponse(BaseModel):
     stops: List[BulkStopUpdate]
+
+
+# --- One-shot: describe a trip, get a fully built itinerary in the database ---
+class AutoCreateTripRequest(BaseModel):
+    title: Optional[str] = Field(None, description="Trip title; generated from the description when omitted")
+    start_date: Optional[str] = Field(None, description="Start date (YYYY-MM-DD)")
+    end_date: Optional[str] = Field(None, description="End date (YYYY-MM-DD)")
+    description: Optional[str] = Field(None, description="What the traveller wants from the trip")
+    cover_image: Optional[str] = None
+
+class AutoCreateTripResponse(BaseModel):
+    trip_id: uuid.UUID
+    name: str
+    start_date: date
+    end_date: date
+    stops_created: int
+    activities_created: int
+    hotels_selected: int
+    summary: Optional[str] = None
+    intent: TripIntentResponse

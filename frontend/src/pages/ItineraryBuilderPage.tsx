@@ -1,12 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Save, Loader2, AlertCircle, Plus, MapPin } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, AlertCircle, Plus, MapPin, LayoutList, GanttChartSquare } from 'lucide-react';
 import { itineraryService, type Itinerary, type TripStop, type TripActivity } from '../services/itinerary.service';
 import { ItinerarySkeleton } from '../components/itinerary/ItinerarySkeleton';
 import { ItineraryEmptyState } from '../components/itinerary/ItineraryEmptyState';
 import { StopSection } from '../components/itinerary/StopSection';
 import { AddStopModal } from '../components/itinerary/AddStopModal';
 import { AddActivityModal } from '../components/itinerary/AddActivityModal';
+import { SelectHotelModal } from '../components/itinerary/SelectHotelModal';
+import { TripTimeline } from '../components/itinerary/TripTimeline';
+import type { Hotel } from '../services/hotels.service';
 
 export const ItineraryBuilderPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -22,6 +25,8 @@ export const ItineraryBuilderPage = () => {
   // Modals state
   const [showAddStop, setShowAddStop] = useState(false);
   const [activeStopIdForActivity, setActiveStopIdForActivity] = useState<string | null>(null);
+  const [activeStopIdForHotel, setActiveStopIdForHotel] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'build' | 'timeline'>('build');
 
   useEffect(() => {
     if (!id) return;
@@ -81,14 +86,37 @@ export const ItineraryBuilderPage = () => {
     });
   };
 
+  // --- Handlers for Hotels ---
+  const handleSelectHotel = (hotel: Hotel) => {
+    if (!itinerary || !activeStopIdForHotel) return;
+    const updatedStops = itinerary.stops.map(stop =>
+      stop.id === activeStopIdForHotel
+        ? { ...stop, hotel_id: hotel.id, hotel }
+        : stop
+    );
+    markDirty({ ...itinerary, stops: updatedStops });
+    setActiveStopIdForHotel(null);
+  };
+
+  const handleClearHotel = () => {
+    if (!itinerary || !activeStopIdForHotel) return;
+    const updatedStops = itinerary.stops.map(stop =>
+      stop.id === activeStopIdForHotel
+        ? { ...stop, hotel_id: null, hotel: null }
+        : stop
+    );
+    markDirty({ ...itinerary, stops: updatedStops });
+    setActiveStopIdForHotel(null);
+  };
+
   // --- Handlers for Activities ---
-  const handleAddActivity = (activityData: Omit<TripActivity, 'id' | 'activity_id'>) => {
+  const handleAddActivity = (activityData: Omit<TripActivity, 'id'>) => {
     if (!itinerary || !activeStopIdForActivity) return;
-    
+
     const newActivity: TripActivity = {
       ...activityData,
       id: `act-${Date.now()}`,
-      activity_id: `sys-${Date.now()}`
+      activity_id: activityData.activity_id || `sys-${Date.now()}`
     };
 
     const updatedStops = itinerary.stops.map(stop => {
@@ -162,6 +190,24 @@ export const ItineraryBuilderPage = () => {
         </div>
         
         <div className="flex items-center gap-4">
+          <div className="flex items-center bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode('build')}
+              className={`inline-flex items-center px-3 py-1.5 rounded-md text-sm font-bold transition-all ${
+                viewMode === 'build' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <LayoutList size={16} className="mr-1.5" /> Build
+            </button>
+            <button
+              onClick={() => setViewMode('timeline')}
+              className={`inline-flex items-center px-3 py-1.5 rounded-md text-sm font-bold transition-all ${
+                viewMode === 'timeline' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <GanttChartSquare size={16} className="mr-1.5" /> Timeline
+            </button>
+          </div>
           {hasUnsavedChanges && !isSaving && (
             <span className="text-sm font-bold text-amber-600 bg-amber-50 px-3 py-1 rounded-full border border-amber-200 animate-in fade-in">
               Unsaved changes
@@ -192,7 +238,9 @@ export const ItineraryBuilderPage = () => {
 
       {/* Main Content Area */}
       <div className="px-2 sm:px-4">
-        {itinerary.stops.length === 0 ? (
+        {viewMode === 'timeline' ? (
+          <TripTimeline itinerary={itinerary} />
+        ) : itinerary.stops.length === 0 ? (
           <ItineraryEmptyState onAddStop={() => setShowAddStop(true)} />
         ) : (
           <div className="space-y-0">
@@ -204,6 +252,7 @@ export const ItineraryBuilderPage = () => {
                 isLast={index === itinerary.stops.length - 1}
                 onRemoveStop={handleRemoveStop}
                 onAddActivity={(stopId) => setActiveStopIdForActivity(stopId)}
+                onSelectHotel={(stopId) => setActiveStopIdForHotel(stopId)}
                 onRemoveActivity={handleRemoveActivity}
               />
             ))}
@@ -234,12 +283,28 @@ export const ItineraryBuilderPage = () => {
         onClose={() => setShowAddStop(false)} 
         onAdd={handleAddStop} 
       />
-      <AddActivityModal 
+      <AddActivityModal
         isOpen={activeStopIdForActivity !== null}
+        cityId={itinerary.stops.find(s => s.id === activeStopIdForActivity)?.city_id ?? null}
         onClose={() => setActiveStopIdForActivity(null)}
         onAdd={handleAddActivity}
       />
-      
+      {(() => {
+        const hotelStop = itinerary.stops.find(s => s.id === activeStopIdForHotel);
+        return (
+          <SelectHotelModal
+            isOpen={activeStopIdForHotel !== null}
+            cityId={hotelStop?.city_id ?? null}
+            cityName={hotelStop?.city_name}
+            nights={hotelStop ? Math.max(Math.round((new Date(hotelStop.end_date).getTime() - new Date(hotelStop.start_date).getTime()) / 86400000), 1) : 1}
+            selectedHotelId={hotelStop?.hotel_id ?? null}
+            onClose={() => setActiveStopIdForHotel(null)}
+            onSelect={handleSelectHotel}
+            onClear={handleClearHotel}
+          />
+        );
+      })()}
+
     </div>
   );
 };

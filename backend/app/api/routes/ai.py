@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, status
 from app.api.deps import get_current_user
 from app.models.user import User
 from app.schemas.ai import (
@@ -7,11 +7,14 @@ from app.schemas.ai import (
     TripSuggestionRequest,
     TripSuggestionResponse,
     GenerateItineraryRequest,
-    GenerateItineraryResponse
+    GenerateItineraryResponse,
+    AutoCreateTripRequest,
+    AutoCreateTripResponse
 )
 from app.api.deps import get_db
 from sqlalchemy.orm import Session
 from app.ai import gemini_service
+from app.services import ai_trip_service
 
 router = APIRouter()
 
@@ -43,3 +46,16 @@ def generate_itinerary(
     Generate a full structured itinerary mapped to database UUIDs based on the user's intent.
     """
     return gemini_service.generate_itinerary_from_db(request, db)
+
+
+@router.post("/create-trip", response_model=AutoCreateTripResponse, status_code=status.HTTP_201_CREATED)
+def create_trip_from_prompt(
+    request: AutoCreateTripRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Describe a trip once and get a finished itinerary: Gemini extracts the intent, plans
+    the days against real cities/activities/hotels, and the result is saved as a new trip.
+    """
+    return ai_trip_service.create_trip_from_prompt(db=db, request=request, user_id=current_user.id)

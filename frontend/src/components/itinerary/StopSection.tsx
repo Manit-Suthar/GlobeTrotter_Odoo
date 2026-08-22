@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, Plus, MapPin, Trash2 } from 'lucide-react';
+import { Calendar, Plus, MapPin, Trash2, BedDouble, Star, Pencil } from 'lucide-react';
 import type { TripStop } from '../../services/itinerary.service';
 import { ActivityCard } from './ActivityCard';
 
@@ -8,13 +8,23 @@ interface StopSectionProps {
   isFirst: boolean;
   isLast: boolean;
   onAddActivity: (stopId: string) => void;
+  onSelectHotel: (stopId: string) => void;
   onRemoveStop: (stopId: string) => void;
   onRemoveActivity: (stopId: string, activityId: string) => void;
 }
 
-export const StopSection: React.FC<StopSectionProps> = ({ 
-  stop, isLast, onAddActivity, onRemoveStop, onRemoveActivity 
+const nightsBetween = (start: string, end: string): number => {
+  const diff = new Date(end).getTime() - new Date(start).getTime();
+  const nights = Math.round(diff / (1000 * 60 * 60 * 24));
+  return nights > 0 ? nights : 1;
+};
+
+export const StopSection: React.FC<StopSectionProps> = ({
+  stop, isLast, onAddActivity, onSelectHotel, onRemoveStop, onRemoveActivity
 }) => {
+  const nights = nightsBetween(stop.start_date, stop.end_date);
+  const hotel = stop.hotel;
+
   return (
     <div className="relative flex">
       {/* Timeline connector */}
@@ -69,6 +79,58 @@ export const StopSection: React.FC<StopSectionProps> = ({
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Where you're staying */}
+        <div className="pl-2 sm:pl-4 mb-6">
+          {hotel ? (
+            <div className="flex bg-white border border-gray-100 rounded-2xl p-3 shadow-sm hover:shadow-md transition-shadow group/hotel relative">
+              <div className="w-24 h-24 rounded-xl bg-gray-100 overflow-hidden flex-shrink-0 mr-4">
+                {hotel.image_url ? (
+                  <img src={hotel.image_url} alt={hotel.name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-teal-200"><BedDouble size={28} /></div>
+                )}
+              </div>
+
+              <div className="flex-1 min-w-0 flex flex-col justify-center py-1">
+                <span className="inline-flex items-center text-xs font-black uppercase tracking-wider text-teal-700 mb-1">
+                  <BedDouble size={13} className="mr-1.5" /> Your stay
+                </span>
+                <h4 className="text-base font-bold text-gray-900 leading-tight">{hotel.name}</h4>
+                <p className="text-sm text-gray-500 font-medium capitalize mt-0.5">
+                  {hotel.hotel_type || 'Hotel'}{hotel.nearby_area ? ` · ${hotel.nearby_area}` : ''}
+                  {hotel.rating != null && (
+                    <span className="inline-flex items-center ml-1.5 text-amber-600 normal-case">
+                      <Star size={12} className="fill-amber-400 text-amber-400 mr-0.5" />{hotel.rating.toFixed(1)}
+                    </span>
+                  )}
+                </p>
+                <p className="text-sm font-bold text-gray-900 mt-1.5">
+                  ₹{hotel.price_per_night.toLocaleString()}
+                  <span className="text-xs font-medium text-gray-500"> / night</span>
+                  <span className="ml-2 text-xs font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-md border border-teal-100">
+                    ₹{(hotel.price_per_night * nights).toLocaleString()} for {nights} {nights === 1 ? 'night' : 'nights'}
+                  </span>
+                </p>
+              </div>
+
+              <button
+                onClick={() => onSelectHotel(stop.id)}
+                className="absolute right-3 top-3 opacity-0 group-hover/hotel:opacity-100 transition-opacity inline-flex items-center px-3 py-1.5 text-xs font-bold text-gray-600 bg-white border border-gray-200 rounded-lg hover:text-teal-700 hover:border-teal-200 shadow-sm"
+              >
+                <Pencil size={13} className="mr-1.5" /> Change
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => onSelectHotel(stop.id)}
+              className="w-full flex items-center justify-center gap-2 bg-white border-2 border-dashed border-gray-200 rounded-2xl p-5 text-gray-500 hover:text-teal-700 hover:border-teal-200 hover:bg-teal-50/30 transition-colors font-bold"
+            >
+              <BedDouble size={18} className="text-teal-600" />
+              Choose where you'll stay in {stop.city_name}
+            </button>
+          )}
         </div>
 
         {/* Activities List */}
