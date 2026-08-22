@@ -1,4 +1,4 @@
-import { TripStop, TripActivity } from '../services/itinerary.service';
+import type { TripStop, TripActivity } from '../services/itinerary.service';
 
 export interface DayGroup {
   date: string;
