@@ -65,7 +65,7 @@ def parse_trip_intent(request: TripIntentRequest) -> TripIntentResponse:
     try:
         genai.configure(api_key=settings.GEMINI_API_KEY)
         model = genai.GenerativeModel(
-            model_name="gemini-3.6-flash",
+            model_name="gemini-1.5-flash",
             system_instruction=SYSTEM_PROMPT
         )
 
@@ -140,7 +140,7 @@ def get_trip_suggestions(request: TripSuggestionRequest) -> TripSuggestionRespon
         )
     try:
         genai.configure(api_key=settings.GEMINI_API_KEY)
-        model = genai.GenerativeModel(model_name="gemini-3.6-flash")
+        model = genai.GenerativeModel(model_name="gemini-1.5-flash")
         response = model.generate_content(request.prompt)
         return TripSuggestionResponse(suggestions=response.text or "No suggestions generated.")
     except Exception as exc:
