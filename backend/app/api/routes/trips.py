@@ -112,4 +112,23 @@ def get_budget(
 ):
     return budget_service.get_trip_budget(db=db, trip_id=trip_id, user_id=current_user.id)
 
+from app.schemas.share import ShareResponse
+from app.services import share_service
+
+@router.post("/{trip_id}/share", response_model=ShareResponse)
+def share_trip(
+    trip_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return share_service.share_trip(db=db, trip_id=trip_id, user_id=current_user.id)
+
+@router.delete("/{trip_id}/share", status_code=status.HTTP_204_NO_CONTENT)
+def unshare_trip(
+    trip_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    share_service.unshare_trip(db=db, trip_id=trip_id, user_id=current_user.id)
+
 
