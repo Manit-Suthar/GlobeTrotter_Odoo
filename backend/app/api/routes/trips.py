@@ -101,3 +101,15 @@ def get_itinerary(
 ):
     return itinerary_service.get_itinerary(db=db, trip_id=trip_id, user_id=current_user.id)
 
+from app.schemas.budget import BudgetResponse
+from app.services import budget_service
+
+@router.get("/{trip_id}/budget", response_model=BudgetResponse)
+def get_budget(
+    trip_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return budget_service.get_trip_budget(db=db, trip_id=trip_id, user_id=current_user.id)
+
+
