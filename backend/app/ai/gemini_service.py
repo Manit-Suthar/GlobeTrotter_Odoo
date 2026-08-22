@@ -17,6 +17,8 @@ from app.schemas.ai import (
 
 logger = logging.getLogger(__name__)
 
+# --- PHASE 1: Intent Extraction ---
+# For a full explanation of this architecture, see docs/ai_workflow.md
 SYSTEM_PROMPT = """You are an AI travel planning assistant. Your job is to extract a structured travel intent object from a user's trip details.
 
 IMPORTANT NOTE: The dataset only has data about places inside India. You must assume all destinations and travel planning are strictly within India unless impossible.
@@ -164,6 +166,8 @@ from app.models.city import City
 from app.models.activity import Activity
 from app.schemas.ai import GenerateItineraryRequest, GenerateItineraryResponse
 
+# --- PHASE 2: Database-Contextualized Itinerary Generation ---
+# See docs/ai_workflow.md for how we inject PostgreSQL data into Gemini
 ITINERARY_SYSTEM_PROMPT = """You are an AI travel itinerary planner specializing in Indian travel. Your goal is to generate a detailed, structured, daily travel itinerary using exact data from our database.
 
 You will be given:
