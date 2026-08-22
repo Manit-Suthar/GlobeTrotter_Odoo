@@ -49,3 +49,55 @@ def delete_trip(
     current_user: User = Depends(get_current_user)
 ):
     trip_service.delete_trip(db=db, trip_id=trip_id, user_id=current_user.id)
+
+from app.schemas.itinerary import (
+    TripStopCreate, TripStopRead, TripStopUpdate, TripStopReorder, ItineraryRead
+)
+from app.services import itinerary_service
+
+@router.post("/{trip_id}/stops", response_model=TripStopRead, status_code=status.HTTP_201_CREATED)
+def create_stop(
+    trip_id: uuid.UUID,
+    stop_in: TripStopCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return itinerary_service.create_stop(db=db, trip_id=trip_id, stop_in=stop_in, user_id=current_user.id)
+
+@router.patch("/{trip_id}/stops/reorder", status_code=status.HTTP_200_OK)
+def reorder_stops(
+    trip_id: uuid.UUID,
+    reorder_in: TripStopReorder,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    itinerary_service.reorder_stops(db=db, trip_id=trip_id, reorder_in=reorder_in, user_id=current_user.id)
+    return {"message": "Reordered successfully"}
+
+@router.patch("/{trip_id}/stops/{stop_id}", response_model=TripStopRead)
+def update_stop(
+    trip_id: uuid.UUID,
+    stop_id: uuid.UUID,
+    stop_in: TripStopUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return itinerary_service.update_stop(db=db, trip_id=trip_id, stop_id=stop_id, stop_in=stop_in, user_id=current_user.id)
+
+@router.delete("/{trip_id}/stops/{stop_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_stop(
+    trip_id: uuid.UUID,
+    stop_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    itinerary_service.delete_stop(db=db, trip_id=trip_id, stop_id=stop_id, user_id=current_user.id)
+
+@router.get("/{trip_id}/itinerary", response_model=ItineraryRead)
+def get_itinerary(
+    trip_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return itinerary_service.get_itinerary(db=db, trip_id=trip_id, user_id=current_user.id)
+
