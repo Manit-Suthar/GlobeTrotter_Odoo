@@ -1,41 +1,70 @@
-import React, { useState } from 'react';
-import { X, Search } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { X, Search, Star, Loader2 } from 'lucide-react';
 import type { TripActivity } from '../../services/itinerary.service';
+import { activitiesService, type CatalogActivity } from '../../services/activities.service';
 
 interface AddActivityModalProps {
   isOpen: boolean;
+  cityId?: string | null;
   onClose: () => void;
-  onAdd: (activity: Omit<TripActivity, 'id' | 'activity_id'>) => void;
+  onAdd: (activity: Omit<TripActivity, 'id'>) => void;
 }
 
-const mockActivities = [
-  { name: 'Louvre Museum', category: 'Museum', cost: 1500, image_url: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=400&q=80', duration: '2-3 hours' },
-  { name: 'Eiffel Tower Tour', category: 'Sightseeing', cost: 2500, image_url: 'https://images.unsplash.com/photo-1511739001486-6bfe10ce785f?auto=format&fit=crop&w=400&q=80', duration: '1-2 hours' },
-  { name: 'Local Food Tasting', category: 'Food', cost: 3000, image_url: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=400&q=80', duration: '3 hours' },
-  { name: 'City Sightseeing Bus', category: 'Tour', cost: 1200, image_url: 'https://images.unsplash.com/photo-1496664977465-9fa8e71887e5?auto=format&fit=crop&w=400&q=80', duration: '2 hours' }
-];
+const formatDuration = (minutes: number) => {
+  if (!minutes) return 'Flexible';
+  if (minutes < 60) return `${minutes} min`;
+  const hours = minutes / 60;
+  return Number.isInteger(hours) ? `${hours} hr${hours === 1 ? '' : 's'}` : `${hours.toFixed(1)} hrs`;
+};
 
-export const AddActivityModal: React.FC<AddActivityModalProps> = ({ isOpen, onClose, onAdd }) => {
+const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+export const AddActivityModal: React.FC<AddActivityModalProps> = ({ isOpen, cityId, onClose, onAdd }) => {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('All');
+  const [activities, setActivities] = useState<CatalogActivity[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setSearch('');
+      setFilter('All');
+      return;
+    }
+    setLoading(true);
+    const request = cityId
+      ? activitiesService.getForCity(cityId)
+      : activitiesService.getActivities();
+    request
+      .then(data => setActivities(data))
+      .catch(err => {
+        console.error(err);
+        setActivities([]);
+      })
+      .finally(() => setLoading(false));
+  }, [isOpen, cityId]);
+
+  const filters = useMemo(() => {
+    const unique = Array.from(new Set(activities.map(a => a.category).filter(Boolean))) as string[];
+    return ['All', ...unique.sort().map(capitalize)];
+  }, [activities]);
 
   if (!isOpen) return null;
 
-  const filters = ['All', 'Sightseeing', 'Food', 'Museum', 'Tour'];
-
-  const filtered = mockActivities.filter(a => {
-    if (filter !== 'All' && a.category !== filter) return false;
-    if (search && !a.name.toLowerCase().includes(search.toLowerCase())) return false;
+  const filtered = activities.filter(a => {
+    if (filter !== 'All' && capitalize(a.category || '') !== filter) return false;
+    if (search && !`${a.name} ${a.tags || ''}`.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
 
-  const handleSelect = (act: typeof mockActivities[0]) => {
+  const handleSelect = (act: CatalogActivity) => {
     onAdd({
+      activity_id: act.id,
       custom_name: act.name,
-      category: act.category,
-      cost_estimate: act.cost,
+      category: act.category ? capitalize(act.category) : undefined,
+      cost_estimate: act.default_cost,
       image_url: act.image_url,
-      duration: act.duration,
+      duration: formatDuration(act.default_duration_minutes),
       scheduled_time: '10:00', // default placeholder
     });
   };
@@ -43,7 +72,7 @@ export const AddActivityModal: React.FC<AddActivityModalProps> = ({ isOpen, onCl
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-xl overflow-hidden flex flex-col max-h-[85vh]">
-        
+
         <div className="flex items-center justify-between p-6 border-b border-gray-100">
           <h3 className="text-xl font-bold text-gray-900">Add an Activity</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700 bg-gray-50 hover:bg-gray-100 p-2 rounded-full transition-colors">
@@ -54,23 +83,23 @@ export const AddActivityModal: React.FC<AddActivityModalProps> = ({ isOpen, onCl
         <div className="p-6 border-b border-gray-100 bg-gray-50/50 space-y-4">
           <div className="relative">
             <Search className="absolute left-4 top-3.5 text-gray-400" size={20} />
-            <input 
-              type="text" 
-              placeholder="Search things to do..." 
+            <input
+              type="text"
+              placeholder="Search things to do..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 font-medium shadow-sm text-gray-900 placeholder-gray-400"
             />
           </div>
-          
+
           <div className="flex flex-wrap gap-2">
             {filters.map(f => (
-              <button 
+              <button
                 key={f}
                 onClick={() => setFilter(f)}
                 className={`px-4 py-1.5 rounded-full text-sm font-bold transition-colors ${
-                  filter === f 
-                    ? 'bg-teal-600 text-white shadow-sm' 
+                  filter === f
+                    ? 'bg-teal-600 text-white shadow-sm'
                     : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
                 }`}
               >
@@ -81,25 +110,42 @@ export const AddActivityModal: React.FC<AddActivityModalProps> = ({ isOpen, onCl
         </div>
 
         <div className="overflow-y-auto p-4 flex-1">
-          {filtered.length === 0 ? (
+          {loading ? (
+             <div className="flex items-center justify-center py-10 text-gray-500 font-bold">
+               <Loader2 size={20} className="animate-spin mr-2 text-teal-600" /> Loading activities...
+             </div>
+          ) : filtered.length === 0 ? (
              <div className="text-center py-10 text-gray-500 font-bold">
                No activities found.
              </div>
           ) : (
             <div className="space-y-4">
               {filtered.map(act => (
-                <div key={act.name} className="flex bg-white border border-gray-100 rounded-xl p-3 hover:shadow-md transition-shadow group relative pr-24">
+                <div key={act.id} className="flex bg-white border border-gray-100 rounded-xl p-3 hover:shadow-md transition-shadow group relative pr-24">
                   <div className="w-20 h-20 bg-gray-200 rounded-lg overflow-hidden flex-shrink-0 mr-4">
-                    <img src={act.image_url} alt={act.name} className="w-full h-full object-cover" />
+                    {act.image_url ? (
+                      <img src={act.image_url} alt={act.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100 text-2xl">🎒</div>
+                    )}
                   </div>
                   <div className="flex flex-col justify-center py-1">
                     <h4 className="text-base font-bold text-gray-900 leading-tight mb-1">{act.name}</h4>
-                    <p className="text-sm text-gray-500 font-medium mb-1">{act.category} · {act.duration}</p>
-                    <p className="text-sm font-bold text-gray-900">₹{act.cost.toLocaleString()}</p>
+                    <p className="text-sm text-gray-500 font-medium mb-1">
+                      {act.category ? capitalize(act.category) : 'Activity'} · {formatDuration(act.default_duration_minutes)}
+                      {act.rating != null && (
+                        <span className="inline-flex items-center ml-2 text-amber-600">
+                          <Star size={12} className="fill-amber-400 text-amber-400 mr-0.5" /> {act.rating.toFixed(1)}
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-sm font-bold text-gray-900">
+                      {act.default_cost > 0 ? `₹${act.default_cost.toLocaleString()}` : 'Free'}
+                    </p>
                   </div>
-                  
+
                   <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                    <button 
+                    <button
                       onClick={() => handleSelect(act)}
                       className="px-5 py-2 bg-teal-50 text-teal-700 hover:bg-teal-600 hover:text-white border border-teal-100 hover:border-teal-600 rounded-lg text-sm font-bold transition-colors shadow-sm"
                     >
@@ -111,7 +157,7 @@ export const AddActivityModal: React.FC<AddActivityModalProps> = ({ isOpen, onCl
             </div>
           )}
         </div>
-        
+
       </div>
     </div>
   );

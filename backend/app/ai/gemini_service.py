@@ -164,6 +164,7 @@ def get_trip_suggestions(request: TripSuggestionRequest) -> TripSuggestionRespon
 from sqlalchemy.orm import Session
 from app.models.city import City
 from app.models.activity import Activity
+from app.models.hotel import Hotel
 from app.schemas.ai import GenerateItineraryRequest, GenerateItineraryResponse
 
 # --- PHASE 2: Database-Contextualized Itinerary Generation ---

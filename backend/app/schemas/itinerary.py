@@ -58,10 +58,28 @@ class TripActivityRead(TripActivityBase):
         from_attributes = True
 
 # --- Itinerary Read Schema (Nested) ---
+class ItineraryHotel(BaseModel):
+    id: uuid.UUID
+    name: str
+    hotel_type: Optional[str] = None
+    price_per_night: float
+    rating: Optional[float] = None
+    budget_category: Optional[str] = None
+    nearby_area: Optional[str] = None
+    image_url: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
 class ItineraryActivity(TripActivityRead):
-    pass # Can expand later with activity details
+    # Catalog details, joined so saved activities keep their imagery on reload
+    category: Optional[str] = None
+    image_url: Optional[str] = None
+    duration_minutes: Optional[int] = None
 
 class ItineraryStop(TripStopRead):
+    hotel_id: Optional[uuid.UUID] = None
+    hotel: Optional[ItineraryHotel] = None
     activities: List[ItineraryActivity] = []
 
 class ItineraryRead(BaseModel):
@@ -79,6 +97,7 @@ class BulkActivityUpdate(BaseModel):
 
 class BulkStopUpdate(BaseModel):
     city_id: uuid.UUID
+    hotel_id: Optional[str] = None
     start_date: date
     end_date: date
     order_index: int

@@ -2,9 +2,12 @@ import uuid
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.models.trip import Trip, TripStop, TripActivity
+from app.models.activity import Activity
+from app.models.hotel import Hotel
 from app.schemas.itinerary import (
     TripStopCreate, TripStopUpdate, TripStopReorder,
-    TripActivityCreate, TripActivityUpdate, ItineraryRead, ItineraryStop, ItineraryActivity
+    TripActivityCreate, TripActivityUpdate, ItineraryRead, ItineraryStop, ItineraryActivity,
+    ItineraryHotel
 )
 from app.core.exceptions import NotFoundException, ForbiddenException, BadRequestException
 from app.services.trip_service import get_trip
@@ -115,15 +118,34 @@ def get_itinerary(db: Session, trip_id: uuid.UUID, user_id: uuid.UUID) -> Itiner
     trip = get_trip(db, trip_id=trip_id, user_id=user_id)
     
     stops = db.query(TripStop).filter(TripStop.trip_id == trip_id).order_by(TripStop.order_index).all()
-    
+
     itinerary_stops = []
     for stop in stops:
-        activities = db.query(TripActivity).filter(TripActivity.trip_stop_id == stop.id).order_by(TripActivity.scheduled_time).all()
+        activities = (
+            db.query(TripActivity, Activity)
+            .outerjoin(Activity, TripActivity.activity_id == Activity.id)
+            .filter(TripActivity.trip_stop_id == stop.id)
+            .order_by(TripActivity.order_index, TripActivity.scheduled_time)
+            .all()
+        )
+
+        itinerary_activities = []
+        for trip_act, catalog in activities:
+            itinerary_activities.append(ItineraryActivity(
+                **{k: v for k, v in trip_act.__dict__.items() if not k.startswith("_")},
+                category=catalog.category if catalog else None,
+                image_url=catalog.image_url if catalog else None,
+                duration_minutes=catalog.default_duration_minutes if catalog else None,
+            ))
+
+        hotel = db.query(Hotel).filter(Hotel.id == stop.hotel_id).first() if stop.hotel_id else None
+
         itinerary_stops.append(ItineraryStop(
-            **stop.__dict__,
-            activities=[ItineraryActivity(**a.__dict__) for a in activities]
+            **{k: v for k, v in stop.__dict__.items() if not k.startswith("_")},
+            hotel=ItineraryHotel.model_validate(hotel) if hotel else None,
+            activities=itinerary_activities
         ))
-        
+
     return ItineraryRead(
         trip_id=trip_id,
         stops=itinerary_stops
@@ -140,9 +162,17 @@ def bulk_update_itinerary(db: Session, trip_id: uuid.UUID, bulk_in: ItineraryBul
     
     # 2. Re-create everything
     for stop_in in bulk_in.stops:
+        hotel_id = None
+        if stop_in.hotel_id:
+            try:
+                hotel_id = uuid.UUID(str(stop_in.hotel_id))
+            except (ValueError, AttributeError):
+                hotel_id = None
+
         db_stop = TripStop(
             trip_id=trip_id,
             city_id=stop_in.city_id,
+            hotel_id=hotel_id,
             order_index=stop_in.order_index,
             start_date=stop_in.start_date,
             end_date=stop_in.end_date

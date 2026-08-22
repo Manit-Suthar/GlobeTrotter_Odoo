@@ -4,6 +4,7 @@ from sqlalchemy import func
 from collections import defaultdict
 
 from app.models.trip import Trip, Expense, TripStop, TripActivity
+from app.models.hotel import Hotel
 from app.schemas.budget import BudgetResponse
 from app.services.trip_service import get_trip
 
@@ -29,13 +30,29 @@ def get_trip_budget(db: Session, trip_id: uuid.UUID, user_id: uuid.UUID) -> Budg
             
     # 2. Sum up activity estimates (assuming they belong to "activities" category unless specified)
     # Get all stops for the trip
-    stops_ids = [stop.id for stop in db.query(TripStop.id).filter(TripStop.trip_id == trip_id).all()]
+    stops = db.query(TripStop).filter(TripStop.trip_id == trip_id).all()
+    stops_ids = [stop.id for stop in stops]
     if stops_ids:
         activity_sum = db.query(func.sum(TripActivity.cost_estimate)).filter(TripActivity.trip_stop_id.in_(stops_ids)).scalar()
         if activity_sum:
             categories["activities"] += float(activity_sum)
             total += float(activity_sum)
-            
+
+    # 3. Sum up selected hotels: nights at each stop x price per night
+    for stop in stops:
+        if not stop.hotel_id:
+            continue
+        hotel = db.query(Hotel).filter(Hotel.id == stop.hotel_id).first()
+        if not hotel or not hotel.price_per_night:
+            continue
+        nights = 1
+        if stop.start_date and stop.end_date:
+            nights = max((stop.end_date - stop.start_date).days, 1)
+        stay_cost = float(hotel.price_per_night) * nights
+        categories["stay"] += stay_cost
+        total += stay_cost
+
+
     daily_average = total / days
     
     return BudgetResponse(

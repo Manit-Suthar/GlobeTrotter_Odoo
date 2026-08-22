@@ -23,6 +23,7 @@ from app.db.database import SessionLocal, engine
 from app.models.user import User
 from app.models.city import City
 from app.models.activity import Activity
+from app.models.hotel import Hotel
 from app.models.trip import Trip, TripStop, TripActivity, Expense, TripShare
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
@@ -189,6 +190,51 @@ def seed_activities_and_places(db: Session, city_map: dict[str, City]) -> None:
 
     db.commit()
     print(f"--> Ingested {activities_count} new activities/places successfully.")
+
+
+def seed_hotels(db: Session, city_map: dict[str, City]) -> None:
+    """Seed hotels from hotels.csv."""
+    hotels_file = os.path.join(DATA_DIR, "hotels.csv")
+    if not os.path.exists(hotels_file):
+        print(f"[!] Warning: {hotels_file} not found.")
+        return
+
+    print("--> Seeding Hotels...")
+    hotels_count = 0
+    with open(hotels_file, mode="r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            city_name = row.get("city", "").strip().lower()
+            city = city_map.get(city_name)
+            if not city:
+                continue
+
+            hotel_name = row["name"].strip()
+            existing = db.query(Hotel).filter(
+                Hotel.city_id == city.id,
+                Hotel.name == hotel_name
+            ).first()
+
+            if not existing:
+                hotel = Hotel(
+                    city_id=city.id,
+                    name=hotel_name,
+                    hotel_type=row.get("hotel_type", "").strip().lower(),
+                    price_per_night=parse_float(row.get("price_per_night", "0")),
+                    rating=parse_float(row.get("rating", "4.0"), 4.0),
+                    latitude=parse_float(row.get("latitude")),
+                    longitude=parse_float(row.get("longitude")),
+                    budget_category=row.get("budget_category", "").strip().lower(),
+                    nearby_area=row.get("nearby_area", "").strip(),
+                    popularity_score=parse_int(row.get("popularity_score", "50")),
+                    tags=row.get("tags", "").strip(),
+                    image_url=row.get("image_url", "").strip(),
+                )
+                db.add(hotel)
+                hotels_count += 1
+
+    db.commit()
+    print(f"--> Ingested {hotels_count} new hotels successfully.")
 
 
 def seed_demo_user_and_trip(db: Session, city_map: dict[str, City]) -> None:
@@ -363,6 +409,7 @@ def run_seed() -> None:
     try:
         city_map = seed_cities(db)
         seed_activities_and_places(db, city_map)
+        seed_hotels(db, city_map)
         seed_demo_user_and_trip(db, city_map)
         print("==================================================")
         print("  Database Seeding Completed Successfully!")
