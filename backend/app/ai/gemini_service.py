@@ -3,7 +3,9 @@ import logging
 from datetime import datetime
 from typing import Optional
 from fastapi import HTTPException, status
-import google.generativeai as genai
+
+from google import genai
+from google.genai import types
 
 from app.core.config import settings
 from app.schemas.ai import (
@@ -63,25 +65,21 @@ def parse_trip_intent(request: TripIntentRequest) -> TripIntentResponse:
         )
 
     try:
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        model = genai.GenerativeModel(
-            model_name="gemini-3.6-flash",
-            system_instruction=SYSTEM_PROMPT
-        )
+        client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
         user_content = f"""Trip Title: {request.title}
 Start Date: {request.start_date or 'Not provided'}
 End Date: {request.end_date or 'Not provided'}
 Description / Notes: {request.description or 'Not provided'}"""
 
-        generation_config = genai.GenerationConfig(
-            response_mime_type="application/json",
-            temperature=0.2
-        )
-
-        response = model.generate_content(
+        response = client.models.generate_content(
+            model="gemini-3.6-flash",
             contents=user_content,
-            generation_config=generation_config
+            config=types.GenerateContentConfig(
+                system_instruction=SYSTEM_PROMPT,
+                response_mime_type="application/json",
+                temperature=0.2
+            )
         )
 
         if not response or not response.text:
@@ -139,9 +137,11 @@ def get_trip_suggestions(request: TripSuggestionRequest) -> TripSuggestionRespon
             suggestions=f"AI suggestions for: {request.prompt} (Stub - GEMINI_API_KEY not configured)"
         )
     try:
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        model = genai.GenerativeModel(model_name="gemini-3.6-flash")
-        response = model.generate_content(request.prompt)
+        client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        response = client.models.generate_content(
+            model="gemini-3.6-flash",
+            contents=request.prompt
+        )
         return TripSuggestionResponse(suggestions=response.text or "No suggestions generated.")
     except Exception as exc:
         return TripSuggestionResponse(suggestions=f"Error generating suggestions: {str(exc)}")
