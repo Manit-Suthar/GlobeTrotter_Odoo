@@ -1,0 +1,7 @@
+{
+  "venvPath": "/Users/manit/GlobeTrotter_Odoo/backend",
+  "venv": ".venv",
+  "extraPaths": [
+    "backend"
+  ]
+}
