@@ -47,12 +47,12 @@ export const DashboardLayout = () => {
               </button>
               
               <div className="relative ml-2">
-                <button className="flex items-center space-x-2 p-1.5 rounded-full hover:bg-gray-50 transition-colors focus:outline-none">
+                <Link to="/profile" className="flex items-center space-x-2 p-1.5 rounded-full hover:bg-gray-50 transition-colors focus:outline-none">
                   <div className="w-8 h-8 rounded-full bg-teal-50 text-teal-700 flex items-center justify-center font-bold text-sm border border-teal-100">
                     M
                   </div>
                   <span className="text-sm font-medium text-gray-700 hidden xl:block">Manasvi</span>
-                </button>
+                </Link>
               </div>
             </div>
 
@@ -91,7 +91,7 @@ export const DashboardLayout = () => {
               ))}
             </div>
             <div className="pt-4 pb-5 border-t border-gray-100">
-              <div className="flex items-center px-4">
+              <Link to="/profile" className="flex items-center px-4 hover:bg-gray-50 py-2 transition-colors">
                 <div className="flex-shrink-0">
                   <div className="w-10 h-10 rounded-full bg-teal-50 text-teal-700 flex items-center justify-center font-bold border border-teal-100">
                     M
@@ -99,8 +99,9 @@ export const DashboardLayout = () => {
                 </div>
                 <div className="ml-3">
                   <div className="text-base font-medium text-gray-800">Manasvi</div>
+                  <div className="text-sm font-medium text-gray-500">View Profile</div>
                 </div>
-              </div>
+              </Link>
             </div>
           </div>
         )}

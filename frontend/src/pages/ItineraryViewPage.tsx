@@ -146,10 +146,9 @@ export const ItineraryViewPage = () => {
                   <p className="text-gray-400 font-medium">Total estimated cost for planned activities.</p>
                 </div>
                 <div className="relative z-10 mt-8 sm:mt-0 w-full sm:w-auto">
-                   {/* Budget View page is next, disabled for now */}
-                   <button className="w-full sm:w-auto px-8 py-4 bg-white text-gray-900 rounded-xl font-bold hover:bg-gray-100 transition-colors">
+                   <Link to={`/trips/${id}/budget`} className="w-full sm:w-auto inline-block text-center px-8 py-4 bg-white text-gray-900 rounded-xl font-bold hover:bg-gray-100 transition-colors">
                      View Full Budget
-                   </button>
+                   </Link>
                 </div>
               </div>
             )}

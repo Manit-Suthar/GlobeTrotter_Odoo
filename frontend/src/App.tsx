@@ -7,6 +7,12 @@ import { CreateTripPage } from './pages/CreateTripPage';
 import { MyTripsPage } from './pages/MyTripsPage';
 import { ItineraryBuilderPage } from './pages/ItineraryBuilderPage';
 import { ItineraryViewPage } from './pages/ItineraryViewPage';
+import { BudgetPage } from './pages/BudgetPage';
+import { TripCalendarPage } from './pages/TripCalendarPage';
+import { ActivitySearchPage } from './pages/ActivitySearchPage';
+import { ProfilePage } from './pages/ProfilePage';
+import { AdminDashboardPage } from './pages/AdminDashboardPage';
+import { PublicItineraryPage } from './pages/PublicItineraryPage';
 
 const App = () => {
   return (
@@ -21,19 +27,23 @@ const App = () => {
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<DashboardPage />} />
           
-          {/* Navigation Placeholders */}
           <Route path="/my-trips" element={<MyTripsPage />} />
-          <Route path="/explore" element={<div>Explore Placeholder</div>} />
+          <Route path="/explore" element={<Navigate to="/activities/search" replace />} />
           <Route path="/create-trip" element={<CreateTripPage />} />
           
-          {/* Future Trip Sub-routes */}
+          <Route path="/activities/search" element={<ActivitySearchPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/admin" element={<AdminDashboardPage />} />
+          
+          {/* Trip Sub-routes */}
           <Route path="/trips/:id/builder" element={<ItineraryBuilderPage />} />
           <Route path="/trips/:id" element={<ItineraryViewPage />} />
-          <Route path="/trips/:id/budget" element={<div>Budget View Placeholder</div>} />
+          <Route path="/trips/:id/budget" element={<BudgetPage />} />
+          <Route path="/trips/:id/calendar" element={<TripCalendarPage />} />
         </Route>
         
         {/* Public Routes */}
-        <Route path="/public/:token" element={<div>Public Itinerary Placeholder</div>} />
+        <Route path="/public/:shareId" element={<PublicItineraryPage />} />
       </Routes>
     </BrowserRouter>
   );
