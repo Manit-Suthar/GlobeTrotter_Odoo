@@ -12,8 +12,8 @@ class CityRead(BaseModel):
     id: uuid.UUID
     name: str
     country: str
-    popularity_score: int
-    cost_index: int
+    popularity_score: float | None = None
+    cost_index: float | None = None
     image_url: str | None = None
 
     class Config:
