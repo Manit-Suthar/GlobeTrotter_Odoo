@@ -1,3 +1,5 @@
+import { apiClient } from '../utils/api';
+
 export interface TripSummary {
   id: string;
   name: string;
@@ -9,51 +11,42 @@ export interface TripSummary {
   estimated_cost?: number;
 }
 
-const mockTrips: TripSummary[] = [
-  {
-    id: 'trip-1',
-    name: 'Japan Adventure',
-    start_date: '2026-09-12',
-    end_date: '2026-09-19',
-    description: 'Exploring the beauty of Japan.',
-    cover_image: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?auto=format&fit=crop&w=800&q=80',
-    cities: ['Tokyo', 'Kyoto', 'Osaka'],
-    estimated_cost: 115000,
-  },
-  {
-    id: 'trip-2',
-    name: 'European Summer',
-    start_date: '2026-06-20',
-    end_date: '2026-07-05',
-    cover_image: 'https://images.unsplash.com/photo-1499856871958-5b9627545d1a?auto=format&fit=crop&w=800&q=80',
-    cities: ['Paris', 'Rome', 'Barcelona'],
-    estimated_cost: 250000,
-  }
-];
-
 export const tripsService = {
   async getTrips(): Promise<TripSummary[]> {
-    return new Promise((resolve) => {
-      setTimeout(() => resolve(mockTrips), 1000);
-    });
+    const rawTrips = await apiClient('/trips', { method: 'GET' });
+    // Map backend TripRead to TripSummary
+    return rawTrips.map((trip: any) => ({
+      id: trip.id,
+      name: trip.name,
+      start_date: trip.start_date,
+      end_date: trip.end_date,
+      description: trip.description,
+      cover_image: trip.cover_photo,
+      cities: [], // Populate if backend supports it later
+      estimated_cost: 0
+    }));
   },
 
   async createTrip(data: { name: string; start_date: string; end_date: string; description?: string; cover_image?: string }): Promise<TripSummary> {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const newTrip: TripSummary = {
-          id: `trip-${Date.now()}`,
-          name: data.name,
-          start_date: data.start_date,
-          end_date: data.end_date,
-          description: data.description,
-          cover_image: data.cover_image,
-          cities: [],
-          estimated_cost: 0
-        };
-        mockTrips.unshift(newTrip);
-        resolve(newTrip);
-      }, 1500); // Simulate network latency
+    const trip = await apiClient('/trips', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: data.name,
+        start_date: data.start_date,
+        end_date: data.end_date,
+        description: data.description,
+        cover_photo: data.cover_image,
+      }),
     });
+    return {
+      id: trip.id,
+      name: trip.name,
+      start_date: trip.start_date,
+      end_date: trip.end_date,
+      description: trip.description,
+      cover_image: trip.cover_photo,
+      cities: [],
+      estimated_cost: 0
+    };
   }
 };
