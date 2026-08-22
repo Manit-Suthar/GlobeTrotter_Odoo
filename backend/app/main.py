@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.routes import health, auth
+from app.api.routes import health, auth, trips
 from app.core.exceptions import setup_exception_handlers
 
 app = FastAPI(title="GlobeTrotter API")
@@ -16,6 +16,7 @@ app.add_middleware(
 setup_exception_handlers(app)
 
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
+app.include_router(trips.router, prefix="/api/trips", tags=["trips"])
 app.include_router(health.router, prefix="/api", tags=["health"])
 
 @app.get("/")
