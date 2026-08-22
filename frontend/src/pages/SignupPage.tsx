@@ -4,10 +4,11 @@ import { AuthLayout } from '../components/auth/AuthLayout';
 import { AuthInput } from '../components/auth/AuthInput';
 import { PasswordInput } from '../components/auth/PasswordInput';
 import { ProfileImageUpload } from '../components/auth/ProfileImageUpload';
-import { authService } from '../services/auth.service';
+import { useAuth } from '../contexts/AuthContext';
 
 export const SignupPage = () => {
   const navigate = useNavigate();
+  const { register } = useAuth();
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -47,17 +48,9 @@ export const SignupPage = () => {
 
     setLoading(true);
     try {
-      // Intentionally referencing profileImage to silence TS unused variable warning
       console.log('Registering user. Profile image attached:', !!profileImage);
-      
-      await authService.register({
-        ...formData,
-        // The API contract only specifies email, password, name, but we send all just in case
-        name: `${formData.firstName} ${formData.lastName}`
-      });
-      // In a real app, you might auto-login or redirect to a success page.
-      // For now, we redirect to login to sign in.
-      navigate('/login');
+      await register(formData);
+      navigate('/dashboard');
     } catch (err: any) {
       setError(err.message || 'We couldn\'t create your account. Please check your information.');
     } finally {

@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Camera, Mail, User as UserIcon, Globe2, MapPin, Trash2, Save, LogOut } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Camera, Mail, User as UserIcon, Globe2, MapPin, Trash2, Save, LogOut, ArrowRight } from 'lucide-react';
 import { userService, type UserProfile } from '../services/user.service';
+import { useAuth } from '../contexts/AuthContext';
 
 export const ProfilePage = () => {
+  const { logout } = useAuth();
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -82,7 +85,10 @@ export const ProfilePage = () => {
            </div>
            
            <div>
-             <button className="flex items-center px-6 py-2.5 bg-gray-50 text-gray-700 font-bold rounded-xl hover:bg-gray-100 transition-colors border border-gray-200">
+             <button 
+               onClick={logout}
+               className="flex items-center px-6 py-2.5 bg-gray-50 text-gray-700 font-bold rounded-xl hover:bg-gray-100 transition-colors border border-gray-200"
+             >
                <LogOut size={16} className="mr-2 opacity-70" /> Sign Out
              </button>
            </div>
