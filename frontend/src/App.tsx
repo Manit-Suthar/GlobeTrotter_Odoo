@@ -6,6 +6,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { CreateTripPage } from './pages/CreateTripPage';
 import { MyTripsPage } from './pages/MyTripsPage';
 import { ItineraryBuilderPage } from './pages/ItineraryBuilderPage';
+import { ItineraryViewPage } from './pages/ItineraryViewPage';
 
 const App = () => {
   return (
@@ -27,7 +28,7 @@ const App = () => {
           
           {/* Future Trip Sub-routes */}
           <Route path="/trips/:id/builder" element={<ItineraryBuilderPage />} />
-          <Route path="/trips/:id" element={<div>Itinerary View Placeholder</div>} />
+          <Route path="/trips/:id" element={<ItineraryViewPage />} />
           <Route path="/trips/:id/budget" element={<div>Budget View Placeholder</div>} />
         </Route>
         
