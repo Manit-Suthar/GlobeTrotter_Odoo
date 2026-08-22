@@ -1,9 +1,19 @@
+import os
+from google import genai
 from app.schemas.ai import TripSuggestionRequest, TripSuggestionResponse
+from app.core.config import settings
 
 def get_trip_suggestions(request: TripSuggestionRequest) -> TripSuggestionResponse:
-    # TODO(Kalp): Integrate with Google Gemini API here.
-    # Read GEMINI_API_KEY from app.core.config.settings
-    # Return structured AI response
-    return TripSuggestionResponse(
-        suggestions=f"AI suggestions for: {request.prompt} (Stub - Pending Gemini Integration)"
-    )
+    if not settings.GEMINI_API_KEY:
+        return TripSuggestionResponse(suggestions="[Gemini API Key missing in backend/.env]")
+        
+    try:
+        client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        # Using gemini-2.5-flash as the default model
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=request.prompt
+        )
+        return TripSuggestionResponse(suggestions=response.text)
+    except Exception as e:
+        return TripSuggestionResponse(suggestions=f"[AI Error: {str(e)}]")

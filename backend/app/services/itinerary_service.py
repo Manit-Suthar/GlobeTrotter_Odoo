@@ -128,3 +128,47 @@ def get_itinerary(db: Session, trip_id: uuid.UUID, user_id: uuid.UUID) -> Itiner
         trip_id=trip_id,
         stops=itinerary_stops
     )
+
+from app.schemas.itinerary import ItineraryBulkUpdate
+
+def bulk_update_itinerary(db: Session, trip_id: uuid.UUID, bulk_in: ItineraryBulkUpdate, user_id: uuid.UUID) -> ItineraryRead:
+    trip = get_trip(db, trip_id=trip_id, user_id=user_id)
+    
+    # 1. Wipe existing stops (cascade will delete activities)
+    db.query(TripStop).filter(TripStop.trip_id == trip_id).delete()
+    db.commit()
+    
+    # 2. Re-create everything
+    for stop_in in bulk_in.stops:
+        db_stop = TripStop(
+            trip_id=trip_id,
+            city_id=stop_in.city_id,
+            order_index=stop_in.order_index,
+            start_date=stop_in.start_date,
+            end_date=stop_in.end_date
+        )
+        db.add(db_stop)
+        db.flush() # get stop id
+        
+        for act_idx, act_in in enumerate(stop_in.activities):
+            real_act_id = None
+            try:
+                # If activity_id is a valid UUID, use it. The frontend might send sys-1234
+                if act_in.activity_id and len(act_in.activity_id) == 36:
+                    real_act_id = uuid.UUID(act_in.activity_id)
+            except:
+                pass
+
+            db_act = TripActivity(
+                trip_stop_id=db_stop.id,
+                activity_id=real_act_id,
+                custom_name=act_in.custom_name,
+                scheduled_time=act_in.scheduled_time,
+                cost_estimate=act_in.cost_estimate,
+                notes=act_in.notes,
+                order_index=act_idx
+            )
+            db.add(db_act)
+    
+    db.commit()
+    return get_itinerary(db, trip_id, user_id)
